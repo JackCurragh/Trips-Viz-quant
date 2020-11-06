@@ -179,14 +179,24 @@ def query():
 				return_str = "TRANSCRIPTS"
 				
 				if len(file_paths_dict["riboseq"].values()) > 0:
-					orfQuant_res = incl_OPM_run_orfQuant(tran, sqlite_path_organism, file_paths_dict["riboseq"].values())
-					TPM_Ribo = TPM(tran, sqlite_path_organism, file_paths_dict["riboseq"].values(), "ribo")
+					pre_orfQuant_res = incl_OPM_run_orfQuant(tran, sqlite_path_organism, file_paths_dict["riboseq"].values())
+					pre_TPM_Ribo = TPM(tran, sqlite_path_organism, file_paths_dict["riboseq"].values(), "ribo")
+
+					max_TPM_Ribo = max(pre_TPM_Ribo.values())
+					TPM_Ribo = {transcript:round((pre_TPM_Ribo[transcript] / max_TPM_Ribo)*100, 2) for transcript in pre_TPM_Ribo}
+
+					max_orf = max(pre_orfQuant_res.values())
+					orfQuant_res = {transcript:round((pre_orfQuant_res[transcript] / max_orf)*100, 2) for transcript in pre_orfQuant_res}
+
 				else:
 					orfQuant_res = {transcript[0]:"Null" for transcript in result}
 					TPM_Ribo = {transcript[0]:"Null" for transcript in result}
 				
 				if len(file_paths_dict["rnaseq"].values()) > 0:
-					TPM_RNA = TPM(tran, sqlite_path_organism, file_paths_dict["rnaseq"].values(), "rna")
+					pre_TPM_RNA = TPM(tran, sqlite_path_organism, file_paths_dict["rnaseq"].values(), "rna")
+					max_TPM_RNA = max(pre_TPM_RNA.values())
+					TPM_RNA = {transcript:round((pre_TPM_RNA[transcript] / max_TPM_RNA)*100, 2) for transcript in pre_TPM_RNA}
+
 				else:
 					TPM_RNA = {transcript[0]:"Null" for transcript in result}
 
