@@ -96,12 +96,10 @@ comparisonquery_blueprint = Blueprint("comparequery", __name__, template_folder=
 @comparisonquery_blueprint.route('/comparequery', methods=['POST'])
 def comparequery():
 	global user_short_passed
-	tran_dict = {}
 	data = ast.literal_eval(request.data)
 	tran = data['transcript'].upper().strip()
 	organism = data['organism']
 	transcriptome = data['transcriptome']
-	file_paths_dict = fetch_file_paths(data["file_list"],organism)
 
 
 	connection = sqlite3.connect('{}/trips.sqlite'.format(config.SCRIPT_LOC))
@@ -124,6 +122,13 @@ def comparequery():
 	cursor.execute("SELECT * from transcripts WHERE transcript = '{}'".format(tran))
 	result = cursor.fetchone()
 
+	inputtran = True
+	if result != None:
+		newtran = result[0]
+	else:
+		inputtran = False
+	
+
 	transhelve.close()
 	minread = int(data['minread'])
 	maxread = int(data['maxread'])
@@ -131,6 +136,7 @@ def comparequery():
 	hili_stop = int(data['hili_stop'])
 	master_filepath_dict = {}
 	master_file_dict = data['master_file_dict']
+
 	# This section is purely to sort by label alphabetically
 	if master_file_dict == {}:
 		return "Error: No files in the File list box. To add files to the file list box click on a study in the studies section above. This will populate the Ribo-seq and RNA-Seq sections with a list of files. Click on one of the files and then press the  Add button in the studies section. This will add the file to the File list box. Selecting another file and clicking Add again will add the new file to the same group in the File list. Alternatively to add a new group simply change the selected colour (by clicking on the coloured box in the studies section) and then click the Add file button."
@@ -138,6 +144,8 @@ def comparequery():
 	connection = sqlite3.connect('{}/trips.sqlite'.format(config.SCRIPT_LOC))
 	connection.text_factory = str
 	cursor = connection.cursor()
+
+	file_paths_dict = {'riboseq' :[]}
 
 	for color in master_file_dict:
 		master_filepath_dict[color] = {"filepaths":[],"file_ids":[],"file_names":[],"file_descs":[],"mapped_reads":0,"minread":minread,"maxread":maxread}
@@ -178,13 +186,13 @@ def comparequery():
 					master_filepath_dict[color]["file_names"].append(file_name)
 					master_filepath_dict[color]["file_descs"].append(result[1])
 					master_filepath_dict[color]["file_type"] = result[2]
+					file_paths_dict["riboseq"].append(filepath)
 
-	inputtran = True
-	if result != None:
-		newtran = result[0]
-	else:
-		inputtran = False
+
+
 	if inputtran == False:
+		transhelve = sqlite3.connect(sqlite_path_organism)
+		cursor = transhelve.cursor()
 		cursor.execute("SELECT * from transcripts WHERE gene = '{}'".format(tran))
 		result = cursor.fetchall()
 		if result != []:
@@ -193,20 +201,23 @@ def comparequery():
 			else:
 				return_str = "TRANSCRIPTS"
 
-				if len(file_paths_dict["riboseq"].values()) > 0:
-					orfQuant_res = incl_OPM_run_orfQuant(tran, sqlite_path_organism, file_paths_dict["riboseq"].values())
-					TPM_Ribo = TPM(tran, sqlite_path_organism, file_paths_dict["riboseq"].values(), "ribo")
+				if len(file_paths_dict["riboseq"]) > 0:
+					
+					pre_orfQuant_res = incl_OPM_run_orfQuant(tran, sqlite_path_organism, file_paths_dict["riboseq"])
+					pre_TPM_Ribo = TPM(tran, sqlite_path_organism, file_paths_dict["riboseq"], "ribo")
+
+					max_TPM_Ribo = max(pre_TPM_Ribo.values())
+					TPM_Ribo = {transcript:round((pre_TPM_Ribo[transcript] / max_TPM_Ribo)*100, 2) for transcript in pre_TPM_Ribo}
+
+					max_orf = max(pre_orfQuant_res.values())
+					orfQuant_res = {transcript:round((pre_orfQuant_res[transcript] / max_orf)*100, 2) for transcript in pre_orfQuant_res}
+
 				else:
 					orfQuant_res = {transcript[0]:"Null" for transcript in result}
 					TPM_Ribo = {transcript[0]:"Null" for transcript in result}
 				
-				if len(file_paths_dict["rnaseq"].values()) > 0:
-					TPM_RNA = TPM(tran, sqlite_path_organism, file_paths_dict["rnaseq"].values(), "rna")
-				else:
-					TPM_RNA = {transcript[0]:"Null" for transcript in result}
-
 				for transcript in result:
-					cursor.execute("SELECT length,cds_start,cds_stop,principal from transcripts WHERE transcript = '{}'".format(transcript[0]))
+					cursor.execute("SELECT length,cds_start,cds_stop,principal,version from transcripts WHERE transcript = '{}'".format(transcript[0]))
 					tran_result = cursor.fetchone()
 					tranlen = tran_result[0]
 					cds_start = tran_result[1]
@@ -215,6 +226,7 @@ def comparequery():
 						principal = "principal"
 					else:
 						principal = ""
+					version = tran_result[4]
 					if cds_start == "NULL" or cds_start == None:
 						cdslen = "NULL"
 						threeutrlen = "NULL"
@@ -227,17 +239,12 @@ def comparequery():
 					else:
 						OPM_coverage = "NULL"
 
-					if transcript[0] in TPM_RNA:
-						RNA_coverage = TPM_RNA[transcript[0]]
-					else:
-						RNA_coverage = "NULL"
-
 					if transcript[0] in TPM_Ribo:
 						ribo_coverage = TPM_Ribo[transcript[0]]
 					else:
 						ribo_coverage = "NULL"
 
-					return_str += (":{},{},{},{},{},{},{},{},{}".format(transcript[0], tranlen, cds_start, cdslen, threeutrlen, OPM_coverage, ribo_coverage, RNA_coverage))
+					return_str += (":{},{},{},{},{},{},{},{}".format(transcript[0], version, tranlen, cds_start, cdslen, threeutrlen, OPM_coverage, ribo_coverage))
 				return return_str
 		else:
 			return "ERROR! Could not find any transcript corresponding to {}".format(tran)
