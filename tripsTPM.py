@@ -70,12 +70,3 @@ def TPM(gene, sqlite_path_organism, sqlite_path_reads, type):
 
     return avg_TPM
 
-sqlite_path_organism = "/home/jackt/Tools/Trips-Viz/Trips-Viz-master/trips_annotations/homo_sapiens/homo_sapiens.Gencode_v25.sqlite"
-sqlite_path_reads_ribo = ['/home/jackt/Tools/Trips-Viz/Trips-Viz-master/trips_shelves/riboseq/homo_sapiens/Park16/SRR3306586.sqlite']
-sqlite_path_reads_rna = ['/home/jackt/Tools/Trips-Viz/Trips-Viz-master/trips_shelves/rnaseq/homo_sapiens/Park16/SRR3306582.sqlite']
-# /home/jackt/Tools/Trips-Viz/Trips-Viz-master/trips_shelves/riboseq/homo_sapiens/Park16
-# coding = get_protein_coding_transcript_ids('phpt1', sqlite_path_organism)
-
-print TPM("phpt1", sqlite_path_organism, sqlite_path_reads_ribo, "ribo")
-
-print TPM("phpt1", sqlite_path_organism, sqlite_path_reads_rna, "rna")
